@@ -6,8 +6,8 @@ from telegram import Bot
 API_URL = "http://147.135.212.197/crapi/st/viewstats"
 API_TOKEN = "RFdUREJBUzR9T4dVc49ndmFra1NYV5CIhpGVcnaOYmqHhJZXfYGJSQ=="
 
-BOT_TOKEN = "8281944831:AAGrz2zrLVLwdDd2BKISYUndRnD6yLn8pEE"
-CHAT_ID = -1003819384817
+BOT_TOKEN = "8604072281:AAGvz-xBuV9_Fljc2ceD7GbfoP0tHXx0Zvo"
+CHAT_ID = -5154192080
 
 bot = Bot(token=BOT_TOKEN)
 
