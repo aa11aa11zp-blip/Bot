@@ -1,7 +1,7 @@
 import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
 import time
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # ---------------- CONFIG ----------------
 BOT_TOKEN = "8604072281:AAGvz-xBuV9_Fljc2ceD7GbfoP0tHXx0Zvo"
@@ -16,15 +16,13 @@ CHANNELS = [
     "@HEMATOTP"
 ]
 
-bot = Bot(token=BOT_TOKEN)
-
 # ---------------- STORAGE ----------------
 users = {}
 referrals = {}
 sent_numbers = set()
 
 # ---------------- JOIN CHECK ----------------
-def check_join(user_id):
+def is_joined(bot, user_id):
     for ch in CHANNELS:
         try:
             member = bot.get_chat_member(ch, user_id)
@@ -46,37 +44,62 @@ def start(update: Update, context: CallbackContext):
 
     users[user_id] = True
 
-    keyboard = [[InlineKeyboardButton(ch, url=f"https://t.me/{ch[1:]}")] for ch in CHANNELS]
+    keyboard = []
+    for ch in CHANNELS:
+        keyboard.append([InlineKeyboardButton(ch, url=f"https://t.me/{ch[1:]}")])
+
+    keyboard.append([InlineKeyboardButton("✅ Check Join", callback_data="check")])
 
     update.message.reply_text(
         "🔒 لطفآ لاندې چینلونو کې ګډون وکړئ:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ---------------- REFERRAL INFO ----------------
-def panel(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
+# ---------------- CHECK JOIN ----------------
+def check_join(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = query.from_user.id
 
-    if not check_join(user_id):
-        update.message.reply_text("❌ مهرباني وکړئ لومړی چینلونو کې Join شئ!")
-        return
+    if is_joined(context.bot, user_id):
+        keyboard = [
+            [InlineKeyboardButton("📊 زما حساب", callback_data="panel")]
+        ]
+        query.edit_message_text(
+            "✅ تاسو ټول چینلونو کې شامل یاست!\n\n🎉 مینو ته ښه راغلاست:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        query.answer("❌ مهرباني وکړئ ټول چینلونو کې ګډون وکړئ!", show_alert=True)
+
+# ---------------- PANEL ----------------
+def panel(update: Update, context: CallbackContext):
+    query = update.callback_query
+    user_id = query.from_user.id
 
     count = len(referrals.get(user_id, []))
     link = f"https://t.me/{context.bot.username}?start={user_id}"
 
-    update.message.reply_text(
-        f"👥 ستاسو ریفیرل: {count}/10\n\n🔗 لینک:\n{link}"
-    )
+    text = f"""
+👤 *ستاسو حساب*
 
-# ---------------- FETCH NUMBER ----------------
+👥 ریفیرل: {count}/10
+
+🔗 ستاسو لینک:
+{link}
+"""
+
+    query.edit_message_text(text, parse_mode="Markdown")
+
+# ---------------- FETCH NUMBERS ----------------
 def fetch_numbers():
     try:
         r = requests.get(API_URL, params={"token": API_TOKEN}, timeout=20)
-        return r.json() if isinstance(r.json(), list) else []
+        data = r.json()
+        return data if isinstance(data, list) else []
     except:
         return []
 
-# ---------------- MAIN LOOP ----------------
+# ---------------- SEND NUMBERS ----------------
 def send_numbers(context: CallbackContext):
     data = fetch_numbers()
 
@@ -94,7 +117,7 @@ def send_numbers(context: CallbackContext):
                 count = len(referrals.get(user_id, []))
 
                 if count < 10:
-                    bot.send_message(
+                    context.bot.send_message(
                         chat_id=user_id,
                         text="❗ لطفآ 10 ملګري دعوت کړئ تر څو نمبر ترلاسه کړئ."
                     )
@@ -107,9 +130,11 @@ def send_numbers(context: CallbackContext):
 
 ━━━━━━━━━━━━"""
 
-                keyboard = [[InlineKeyboardButton("🔑 کوډ یی دلته پیدا کړی", url="https://t.me/HematOTP")]]
+                keyboard = [[
+                    InlineKeyboardButton("🔑 کوډ یی دلته پیدا کړی", url="https://t.me/HematOTP")
+                ]]
 
-                bot.send_message(
+                context.bot.send_message(
                     chat_id=user_id,
                     text=text,
                     parse_mode="Markdown",
@@ -125,7 +150,8 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("panel", panel))
+    dp.add_handler(CallbackQueryHandler(check_join, pattern="check"))
+    dp.add_handler(CallbackQueryHandler(panel, pattern="panel"))
 
     updater.job_queue.run_repeating(send_numbers, interval=30, first=10)
 
